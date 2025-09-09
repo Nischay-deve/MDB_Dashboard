@@ -21,43 +21,43 @@ export default function Transactions() {
 
   // fetch data from backend
   useEffect(() => {
-    const params = new URLSearchParams({
-      page,
-      limit,
-      sort,
-      order,
-      search,
-      status,
-      deviceId,
-      from,
-      to,
-    });
-
-    fetch(`/api/transactions?${params.toString()}`, {
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-      },
-    })
-      .then(async (res) => {
-        if (res.status === 401) {
-          navigate("/signin");
-          return { data: [], total: 0 };
-        }
-        return res.json();
-      })
-      .then((data) => {
-        console.log(data);
-        setTransactions(data.data || []);
-        setTotal(data.total || 0);
-      })
-      .catch((err) => {
-        console.error("Error fetching transactions:", err);
-        setTransactions([]);
+  const fetchTransactions = async () => {
+    try {
+      const res = await axios.get("/api/transactions", {
+        params: {
+          page,
+          limit,
+          sort,
+          order,
+          search,
+          status,
+          deviceId,
+          from,
+          to,
+        },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        withCredentials: true, // same as fetch's "credentials: include"
       });
-  }, [page, limit, sort, order, search, status, deviceId, from, to, navigate]);
 
+      setTransactions(res.data.data || []);
+      setTotal(res.data.total || 0);
+    } catch (err) {
+      if (err.response && err.response.status === 401) {
+        navigate("/signin");
+        setTransactions([]);
+        setTotal(0);
+        return;
+      }
+      console.error("Error fetching transactions:", err);
+      setTransactions([]);
+    }
+  };
+
+  fetchTransactions();
+}, [page, limit, sort, order, search, status, deviceId, from, to, navigate]);
   // Excel export (local)
   const exportToExcel = () => {
     const worksheet = XLSX.utils.json_to_sheet(transactions);
