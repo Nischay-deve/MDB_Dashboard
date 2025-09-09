@@ -14,7 +14,7 @@ const app = express();
 app.use(helmet());
 const allowedOrigins = [
   "https://mdb-dash.netlify.app",   // Netlify frontend
-  "http://localhost:3000"           // local dev
+  "http://localhost:4000"           // local dev
 ];
 
 app.use(cors({
