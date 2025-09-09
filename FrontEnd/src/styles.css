@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* simple components */
+.card { @apply bg-white rounded-2xl shadow p-4; }
+.btn { @apply inline-flex items-center gap-2 rounded px-3 py-2 border border-gray-200 bg-white hover:bg-gray-50 text-sm; }
+.btn-primary { @apply bg-indigo-600 text-white border-transparent hover:bg-indigo-700; }
+.input { @apply w-full rounded-md border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500; }
+.layout-sidebar { @apply w-64 bg-slate-900 text-white flex flex-col; }
+.topbar { @apply h-14 border-b bg-white flex items-center justify-between px-4; }
+
+/* auth gradient halves */
+.auth-hero { background: linear-gradient(135deg,#0f172a 0%,#1e293b 100%); }
+.auth-hero-2 { background: linear-gradient(135deg,#063970 0%,#0b1f2d 100%); }
