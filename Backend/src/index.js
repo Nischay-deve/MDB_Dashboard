@@ -12,7 +12,21 @@ const app = express();
 
 
 app.use(helmet());
-app.use(cors({ origin: process.env.CORS_ORIGIN, credentials: true }));
+const allowedOrigins = [
+  "https://mdb-dash.netlify.app",   // Netlify frontend
+  "http://localhost:3000"           // local dev
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true, // if using cookies/JWT in headers
+}));
 app.use(express.json());
 
 
