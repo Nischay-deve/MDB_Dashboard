@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
-
-const API_URL = "https://mdb-dashboard.onrender.com/api/transactions";
+import api from "../utils/api";
+import { useNavigate } from "react-router-dom";
 
 export default function Transactions() {
   const [transactions, setTransactions] = useState([]);
@@ -12,17 +11,27 @@ export default function Transactions() {
     from: "",
     to: ""
   });
+  const navigate = useNavigate();
 
-  // Load all transactions on first render
+  // Redirect if not logged in
   useEffect(() => {
-    fetchTransactions();
+    const token = localStorage.getItem("token");
+    if (!token) {
+      navigate("/login");
+    } else {
+      fetchTransactions();
+    }
   }, []);
 
   const fetchTransactions = async () => {
     try {
-      const res = await axios.get(API_URL, { params: filters });
+      const res = await api.get("/transactions", { params: filters });
       setTransactions(res.data);
     } catch (err) {
+      if (err.response?.status === 401) {
+        localStorage.removeItem("token");
+        navigate("/login");
+      }
       console.error(err);
     }
   };
@@ -37,10 +46,9 @@ export default function Transactions() {
 
   const handleExport = async () => {
     try {
-      const res = await axios.get(`${API_URL}/export`, {
-        responseType: "blob" // important for file download
+      const res = await api.get("/transactions/export", {
+        responseType: "blob"
       });
-
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement("a");
       link.href = url;
@@ -53,16 +61,29 @@ export default function Transactions() {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    navigate("/login");
+  };
+
   return (
     <div className="p-5">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">Transactions</h2>
-        <button
-          onClick={handleExport}
-          className="bg-green-500 text-white px-4 py-2 rounded"
-        >
-          Export to Excel
-        </button>
+        <div>
+          <button
+            onClick={handleExport}
+            className="bg-green-500 text-white px-4 py-2 rounded mr-2"
+          >
+            Export to Excel
+          </button>
+          <button
+            onClick={handleLogout}
+            className="bg-red-500 text-white px-4 py-2 rounded"
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
