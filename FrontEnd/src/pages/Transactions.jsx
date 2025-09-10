@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import api from "../utils/api";
+import api from "../api";
 import { useNavigate } from "react-router-dom";
 
 export default function Transactions() {
@@ -9,24 +9,31 @@ export default function Transactions() {
     status: "",
     device_id: "",
     from: "",
-    to: ""
+    to: "",
   });
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [total, setTotal] = useState(0);
+
   const navigate = useNavigate();
 
-  // Redirect if not logged in
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (!token) {
       navigate("/login");
     } else {
-      fetchTransactions();
+      fetchTransactions(1); // load first page
     }
   }, []);
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = async (p = page) => {
     try {
-      const res = await api.get("/transactions", { params: filters });
-      setTransactions(res.data);
+      const res = await api.get("/transactions", {
+        params: { ...filters, page: p, limit },
+      });
+      setTransactions(res.data.data);
+      setTotal(res.data.total);
+      setPage(res.data.page);
     } catch (err) {
       if (err.response?.status === 401) {
         localStorage.removeItem("token");
@@ -41,13 +48,14 @@ export default function Transactions() {
   };
 
   const handleFilter = () => {
-    fetchTransactions();
+    fetchTransactions(1); // reset to page 1 after filter
   };
 
   const handleExport = async () => {
     try {
       const res = await api.get("/transactions/export", {
-        responseType: "blob"
+        params: filters, // ✅ send filters
+        responseType: "blob",
       });
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement("a");
@@ -61,29 +69,18 @@ export default function Transactions() {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    navigate("/login");
-  };
+  const totalPages = Math.ceil(total / limit);
 
   return (
     <div className="p-5">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">Transactions</h2>
-        <div>
-          <button
-            onClick={handleExport}
-            className="bg-green-500 text-white px-4 py-2 rounded mr-2"
-          >
-            Export to Excel
-          </button>
-          <button
-            onClick={handleLogout}
-            className="bg-red-500 text-white px-4 py-2 rounded"
-          >
-            Logout
-          </button>
-        </div>
+        <button
+          onClick={handleExport}
+          className="bg-green-500 text-white px-4 py-2 rounded"
+        >
+          Export to Excel
+        </button>
       </div>
 
       {/* Filters */}
@@ -171,6 +168,27 @@ export default function Transactions() {
           )}
         </tbody>
       </table>
+
+      {/* Pagination */}
+      <div className="flex justify-between items-center mt-4">
+        <button
+          disabled={page === 1}
+          onClick={() => fetchTransactions(page - 1)}
+          className="bg-gray-300 px-3 py-1 rounded disabled:opacity-50"
+        >
+          Prev
+        </button>
+        <span>
+          Page {page} of {totalPages}
+        </span>
+        <button
+          disabled={page === totalPages}
+          onClick={() => fetchTransactions(page + 1)}
+          className="bg-gray-300 px-3 py-1 rounded disabled:opacity-50"
+        >
+          Next
+        </button>
+      </div>
     </div>
   );
 }
