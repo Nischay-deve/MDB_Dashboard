@@ -1,129 +1,71 @@
 import { Router } from "express";
 import { pool } from "../db.js";
 import { authRequired } from "../middleware/auth.js";
-import { toCSV, toXLSX } from "../utils/export.js";
+import ExcelJS from "exceljs";
 
 const router = Router();
 
-// 🔧 Build WHERE clause dynamically with safe bindings
-function buildFilters(query) {
-  const where = [];
-  const params = [];
-
-  if (query.status) {
-    where.push("status = ?");
-    params.push(query.status);
-  }
-  if (query.deviceId) {
-    where.push("device_id = ?");
-    params.push(query.deviceId);
-  }
-  if (query.from) {
-    where.push("created_at >= ?");
-    params.push(query.from + " 00:00:00");
-  }
-  if (query.to) {
-    where.push("created_at <= ?");
-    params.push(query.to + " 23:59:59");
-  }
-  if (query.search) {
-    where.push("(serial_no LIKE ? OR CAST(amount AS CHAR) LIKE ?)");
-    params.push(`%${query.search}%`, `%${query.search}%`);
-  }
-
-  const whereSql = where.length ? "WHERE " + where.join(" AND ") : "";
-  return { whereSql, params };
-}
-
+// GET all transactions with filters
 router.get("/", authRequired, async (req, res) => {
   try {
-    // ✅ Sanitize pagination & sorting
-    let { page = 1, limit = 20, sort = "created_at", order = "DESC" } = req.query;
+    const { serial_no, status, device_id, from, to } = req.query;
+    let query = "SELECT * FROM transactions WHERE 1=1";
+    let params = [];
 
-    page = parseInt(page, 10);
-    limit = parseInt(limit, 10);
+    if (serial_no) {
+      query += " AND serial_no LIKE ?";
+      params.push(`%${serial_no}%`);
+    }
+    if (status) {
+      query += " AND status = ?";
+      params.push(status);
+    }
+    if (device_id) {
+      query += " AND device_id = ?";
+      params.push(device_id);
+    }
+    if (from && to) {
+      query += " AND DATE(created_at) BETWEEN ? AND ?";
+      params.push(from, to);
+    }
 
-    if (!Number.isFinite(page) || page < 1) page = 1;
-    if (!Number.isFinite(limit) || limit < 1) limit = 20;
+    query += " ORDER BY created_at DESC";
 
-    const offset = (page - 1) * limit;
-
-    const { whereSql, params } = buildFilters(req.query);
-
-    const safeSort = [
-      "created_at",
-      "amount",
-      "user_id",
-      "status",
-      "device_id",
-      "id",
-      "serial_no",
-    ].includes(sort)
-      ? sort
-      : "created_at";
-
-    const safeOrder = order.toUpperCase() === "ASC" ? "ASC" : "DESC";
-
-    // 🔧 Debug log
-    console.log("Pagination params:", { page, limit, offset, sort: safeSort, order: safeOrder });
-
-    const [rows] = await pool.execute(
-      `SELECT id, serial_no AS serial_number, user_id, amount, status, device_id, created_at
-       FROM transactions
-       ${whereSql}
-       ORDER BY ${safeSort} ${safeOrder}
-       LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
-    );
-
-    const [countRows] = await pool.execute(
-      `SELECT COUNT(*) AS cnt FROM transactions ${whereSql}`,
-      params
-    );
-
-    res.json({ data: rows, total: countRows[0].cnt });
+    const [rows] = await pool.query(query, params);
+    res.json(rows);
   } catch (err) {
-    console.error("Error fetching transactions:", err);
-    res.status(500).json({ error: "Failed to fetch transactions" });
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
+// EXPORT to Excel
 router.get("/export", authRequired, async (req, res) => {
   try {
-    const { format = "csv" } = req.query;
-    const { whereSql, params } = buildFilters(req.query);
+    const [rows] = await pool.query("SELECT * FROM transactions ORDER BY created_at DESC");
 
-    const [rows] = await pool.execute(
-      `SELECT id, serial_no AS serial_number, amount, status, device_id, created_at
-       FROM transactions
-       ${whereSql}
-       ORDER BY created_at DESC`,
-      params
-    );
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Transactions");
 
-    if (format === "excel" || format === "xlsx") {
-      const buf = await toXLSX(rows);
-      res.setHeader(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      );
-      res.setHeader(
-        "Content-Disposition",
-        'attachment; filename="transactions.xlsx"'
-      );
-      return res.send(Buffer.from(buf));
-    } else {
-      const csv = toCSV(rows);
-      res.setHeader("Content-Type", "text/csv");
-      res.setHeader(
-        "Content-Disposition",
-        'attachment; filename="transactions.csv"'
-      );
-      return res.send(csv);
-    }
+    worksheet.columns = [
+      { header: "Serial No", key: "serial_no", width: 15 },
+      { header: "User ID", key: "user_id", width: 15 },
+      { header: "Amount", key: "amount", width: 10 },
+      { header: "Device ID", key: "device_id", width: 20 },
+      { header: "Status", key: "status", width: 15 },
+      { header: "Created At", key: "created_at", width: 20 }
+    ];
+
+    rows.forEach((row) => worksheet.addRow(row));
+
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", "attachment; filename=transactions.xlsx");
+
+    await workbook.xlsx.write(res);
+    res.end();
   } catch (err) {
-    console.error("Error exporting transactions:", err);
-    res.status(500).json({ error: "Failed to export transactions" });
+    console.error(err);
+    res.status(500).json({ error: "Failed to export Excel" });
   }
 });
 
