@@ -8,36 +8,8 @@ const router = Router();
 // =========================
 // POST create new transaction
 // =========================
-router.post("/create", async (req, res) => {
-  try {
-    const {user_id, amount, device_id, status } = req.body;
 
-    // Validate required fields
-    if ( !user_id || !amount || !device_id || !status) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
 
-    const [result] = await pool.query(
-      `INSERT INTO transactions ( user_id, amount, device_id, status, created_at) 
-       VALUES (?, ?, ?, ?, NOW())`,
-      [user_id, amount, device_id, status]
-    );
-
-    res.status(201).json({
-      message: "Transaction created successfully",
-      transaction: {
-        id: result.insertId,
-        user_id,
-        amount,
-        device_id,
-        status,
-      },
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
 
 // =========================
 // GET transactions with filters + pagination
