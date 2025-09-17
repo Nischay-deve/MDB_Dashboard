@@ -5,8 +5,44 @@ import ExcelJS from "exceljs";
 
 const router = Router();
 
+// =========================
+// POST create new transaction
+// =========================
+router.post("/create", async (req, res) => {
+  try {
+    const {user_id, amount, device_id, status } = req.body;
+
+    // Validate required fields
+    if ( !user_id || !amount || !device_id || !status) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const [result] = await pool.query(
+      `INSERT INTO transactions ( user_id, amount, device_id, status, created_at) 
+       VALUES (?, ?, ?, ?, NOW())`,
+      [user_id, amount, device_id, status]
+    );
+
+    res.status(201).json({
+      message: "Transaction created successfully",
+      transaction: {
+        id: result.insertId,
+        user_id,
+        amount,
+        device_id,
+        status,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// =========================
 // GET transactions with filters + pagination
-router.get("/", authRequired, async (req, res) => {
+// =========================
+router.get("/", async (req, res) => {
   try {
     const { serial_no, status, device_id, from, to, page = 1, limit = 10 } = req.query;
     let query = "SELECT * FROM transactions WHERE 1=1";
@@ -39,7 +75,7 @@ router.get("/", authRequired, async (req, res) => {
     params.push(parseInt(limit), parseInt(offset));
 
     const [rows] = await pool.query(query, params);
-    const [count] = await pool.query(countQuery, params.slice(0, -2)); // exclude limit/offset
+    const [count] = await pool.query(countQuery, params.slice(0, -2));
 
     res.json({ data: rows, total: count[0].total, page: parseInt(page), limit: parseInt(limit) });
   } catch (err) {
@@ -48,7 +84,9 @@ router.get("/", authRequired, async (req, res) => {
   }
 });
 
+// =========================
 // EXPORT filtered or full
+// =========================
 router.get("/export", authRequired, async (req, res) => {
   try {
     const { serial_no, status, device_id, from, to } = req.query;
