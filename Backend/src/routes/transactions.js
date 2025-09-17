@@ -8,7 +8,48 @@ const router = Router();
 // =========================
 // POST create new transaction
 // =========================
+router.post("/create", async (req, res) => {
+  try {
+    const { user_id, amount, device_id, status } = req.body;
 
+    // Validate required fields
+    if (!user_id || !amount || !device_id || !status) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    // 1️⃣ Get the next serial number
+    const [rows] = await pool.query(`
+      SELECT IFNULL(MAX(CAST(SUBSTRING(serial_no, 4) AS UNSIGNED)), 0) + 1 AS next_id 
+      FROM transactions
+    `);
+
+    const nextId = rows[0].next_id;
+    const serialNo = `TXN${String(nextId).padStart(4, "0")}`;
+
+    // 2️⃣ Insert transaction with serial_no
+    const [result] = await pool.query(
+      `INSERT INTO transactions (user_id, amount, device_id, status, serial_no, created_at) 
+       VALUES (?, ?, ?, ?, ?, NOW())`,
+      [user_id, amount, device_id, status, serialNo]
+    );
+
+    // 3️⃣ Respond with inserted data
+    res.status(201).json({
+      message: "Transaction created successfully",
+      transaction: {
+        id: result.insertId,
+        user_id,
+        amount,
+        device_id,
+        status,
+        serial_no: serialNo,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
 
 
 // =========================
